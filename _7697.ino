@@ -1,4 +1,4 @@
-# define ledpin 7
+# define ledpin 10
 
 void setup() {
   
