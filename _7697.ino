@@ -1,76 +1,56 @@
-# define ledpin1 10
-# define ledpin2 11
-# define ledpin3 12
-# define sw_btn 13
+/* Receive the controlling message, turning on/off and pwm, and
+ * than set the corresponding pin.
+ */
 
+enum UltrasonicPinID {
+    U_F = 0,
+    U_L,
+    U_R,
+    NUM_OF_ULTRASONIC_PIN
+};
 
-int _status;
-void setup() {
-  
- Serial.begin(9600);
- pinMode(ledpin1,OUTPUT);
- pinMode(ledpin2,OUTPUT);
- pinMode(ledpin3,OUTPUT);
- pinMode(sw_btn,INPUT);
+/* Pin assignment */
+static const uint8_t usTrigPins[NUM_OF_ULTRASONIC_PIN] = {6, 8, 10 };  // F, L, R
+static const uint8_t usEchoPins[NUM_OF_ULTRASONIC_PIN] = {7, 9, 11 };  // F, L, R
+
+long ultrasonicGetDistance(uint8_t trig, uint8_t echo)
+{
+    long duration;
+
+    pinMode(trig, OUTPUT);
+    digitalWrite(trig, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trig, HIGH);
+    delayMicroseconds(5);
+    digitalWrite(trig, LOW);
+
+    pinMode(echo, INPUT);
+    duration = pulseIn(echo, HIGH, 5000000L);
+    return duration / 29 / 2;
 }
 
-void loop() {
 
- int btn_value1, btn_value2 ;
- Serial.println(btn_value1);
- Serial.println(btn_value2);
- Serial.println(_status);
- Serial.println("-------------------");
- btn_value1 = digitalRead(sw_btn);
- delay(200);  
- btn_value2 = digitalRead(sw_btn);
-    
- if(btn_value1!=btn_value2){
-   _status ++;
-   switch(_status){
-   case 1:
-      {
-        int i=0;
-        for(i;i<255;i++){
-          analogWrite(ledpin1,i);
-          analogWrite(ledpin2,i);
-          analogWrite(ledpin3,i);
-          delay(10);
-        }
-        for(i;i>0;i--){
-        analogWrite(ledpin1,i);
-        analogWrite(ledpin2,i);
-        analogWrite(ledpin3,i);
-        delay(10);
-        }
-         
-        break;
-    }
-        
-    case 2:
-    {
-      for(int j=0;j<3;j++){
-        analogWrite(ledpin1,255);
-        analogWrite(ledpin3,0);
-      delay(500);
-        analogWrite(ledpin2,255);
-        analogWrite(ledpin1,0);
-      delay(500);
-        analogWrite(ledpin3,255);
-        analogWrite(ledpin2,0);
-      delay(500);
-      }
-      break;
-    }
-       
-   default:
-   {_status=0;
-   analogWrite(ledpin1,0);
-   analogWrite(ledpin2,0);
-   analogWrite(ledpin3,0);
-   }
-    break;
-    }
- }
-    delay(300);
+
+
+void setup()
+{
+
+  Serial.begin(9600);
+  while (!Serial)
+    ;
+}
+void loop()
+{
+
+  long dF, dL, dR;
+  
+    dF = ultrasonicGetDistance(usTrigPins[U_F], usEchoPins[U_F]);
+    dL = ultrasonicGetDistance(usTrigPins[U_L], usEchoPins[U_L]);
+    dR = ultrasonicGetDistance(usTrigPins[U_R], usEchoPins[U_R]);
+    Serial.println("Serial.println: ");
+    Serial.println(dF);
+    Serial.println(dR);
+    Serial.println(dL);
+    delay(100);
+      
 }
