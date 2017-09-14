@@ -1,23 +1,32 @@
 # define ledpin 10
-# define btn 12
+# define sw_btn 12
 
 void setup() {
   
  Serial.begin(9600);
  pinMode(ledpin,OUTPUT);
- pinMode(btn,INPUT);
+ pinMode(sw_btn,INPUT);
 }
 
-
+int _status;
 void loop() {
 
- int btn_value = digitalRead(btn);
- Serial.println(btn_value);
+ int btn_value1 = digitalRead(sw_btn);
+ delay(200);
+ int btn_value2 = digitalRead(sw_btn);
+ Serial.println(btn_value1);
+ Serial.println(btn_value2);
+ Serial.println(_status);
+ Serial.println("-------------------");
  
- if(digitalRead(btn)){
-  digitalWrite(ledpin,HIGH);
-  delay(100);
+ if(btn_value1!=btn_value2){
+  if(!_status){
+    _status = 1;
+  
  }else{
-  digitalWrite(ledpin,LOW);
+  _status = 0;
   }
+  }
+  digitalWrite(ledpin,_status);
+  delay(500);
 }
