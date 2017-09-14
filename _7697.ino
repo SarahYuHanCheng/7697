@@ -1,56 +1,25 @@
-/* Receive the controlling message, turning on/off and pwm, and
- * than set the corresponding pin.
- */
+#define ledpin1 10
 
-enum UltrasonicPinID {
-    U_F = 0,
-    U_L,
-    U_R,
-    NUM_OF_ULTRASONIC_PIN
-};
-
-/* Pin assignment */
-static const uint8_t usTrigPins[NUM_OF_ULTRASONIC_PIN] = {6, 8, 10 };  // F, L, R
-static const uint8_t usEchoPins[NUM_OF_ULTRASONIC_PIN] = {7, 9, 11 };  // F, L, R
-
-long ultrasonicGetDistance(uint8_t trig, uint8_t echo)
-{
-    long duration;
-
-    pinMode(trig, OUTPUT);
-    digitalWrite(trig, LOW);
-    delayMicroseconds(2);
-    digitalWrite(trig, HIGH);
-    delayMicroseconds(5);
-    digitalWrite(trig, LOW);
-
-    pinMode(echo, INPUT);
-    duration = pulseIn(echo, HIGH, 5000000L);
-    return duration / 29 / 2;
+void setup() {
+   Serial.begin(9600);
+ pinMode(ledpin1,OUTPUT);
 }
 
-
-
-
-void setup()
-{
-
-  Serial.begin(9600);
-  while (!Serial)
-    ;
+void loop() {
+ int i=0;
+        for(i;i<1000;i+=10){
+          Digital_PWM(ledpin1,i);
+        }
+        for(i;i>0;i-=10){
+        Digital_PWM(ledpin1,i);
+        }
 }
-void loop()
-{
 
-  long dF, dL, dR;
-  
-    dF = ultrasonicGetDistance(usTrigPins[U_F], usEchoPins[U_F]);
-    dL = ultrasonicGetDistance(usTrigPins[U_L], usEchoPins[U_L]);
-    dR = ultrasonicGetDistance(usTrigPins[U_R], usEchoPins[U_R]);
-    Serial.println("Serial.println: ");
-    Serial.println(dF);
-    Serial.println(dR);
-    Serial.println(dL);
-    delay(100);
-      
-}
+void Digital_PWM(uint8_t pin, int duty){
+    for(int i =0;i<100;i++){
+      digitalWrite(pin, HIGH);
+      delayMicroseconds(duty); // Approximately 10% duty cycle @ 1KHz
+      digitalWrite(pin, LOW);
+      delayMicroseconds(1000 - duty);
+    }
+  }
