@@ -1,20 +1,23 @@
 # define ledpin 10
+# define btn 12
 
 void setup() {
   
  Serial.begin(9600);
  pinMode(ledpin,OUTPUT);
+ pinMode(btn,INPUT);
 }
 
+
 void loop() {
-  
- int i=0;
- for(i;i<255;i++){
-  analogWrite(ledpin,i);
-  delay(10);
-  }
-  for(i;i>0;i--){
-  analogWrite(ledpin,i);
-  delay(10);
+
+ int btn_value = digitalRead(btn);
+ Serial.println(btn_value);
+ 
+ if(digitalRead(btn)){
+  digitalWrite(ledpin,HIGH);
+  delay(100);
+ }else{
+  digitalWrite(ledpin,LOW);
   }
 }
