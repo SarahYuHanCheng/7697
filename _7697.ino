@@ -9,12 +9,15 @@ void setup() {
 }
 
 void loop() {
+digitalWrite(ledpin2,LOW);
 
- analogWrite(ledpin1,HIGH);
- digitalWrite(ledpin2,LOW);
- delay(500);
- digitalWrite(ledpin1,LOW);
- digitalWrite(ledpin2,HIGH);
- delay(500);
-
+  for(int i=0;i<255;i++){
+ analogWrite(ledpin1,i);
+delay(50);
+}
+  
+for(int i=255;i>0;i--){
+ analogWrite(ledpin1,i);
+delay(50);
+}
 }
