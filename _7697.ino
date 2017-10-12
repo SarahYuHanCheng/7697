@@ -1,23 +1,21 @@
-# define ledpin1 9
-# define ledpin2 10
+#include "TCS3200.h"
 
+TCS3200 colorSensor(6, 7, 8, 9, 10);  // S0, S1, S2, S3, Out
+static char buf[32];
 void setup() {
-  
+  colorSensor.setOutFreqScaling(PERCENT_100);
  Serial.begin(9600);
- pinMode(ledpin1,OUTPUT);
- pinMode(ledpin2,OUTPUT);
-}
 
+}
+void reportColorSensor()
+{
+  sprintf(buf,"R: %ld, G: %ld, B: %ld",
+      colorSensor.getPeriod(RED),
+      colorSensor.getPeriod(GREEN),
+      colorSensor.getPeriod(BLUE));
+      Serial.println(buf);
+}
 void loop() {
-digitalWrite(ledpin2,LOW);
-
-  for(int i=0;i<255;i++){
- analogWrite(ledpin1,i);
-delay(50);
-}
-  
-for(int i=255;i>0;i--){
- analogWrite(ledpin1,i);
-delay(50);
-}
+reportColorSensor();
+delay(1000);
 }
