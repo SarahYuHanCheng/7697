@@ -1,94 +1,57 @@
-enum MotorPinID {
-    L_F = 0,
-    L_B,
-    R_F,
-    R_B,
-    NUM_OF_MOTOR_PIN
-};
-enum UltrasonicPinID {
-    U_F = 0,
-    U_L,
-    U_R,
-    NUM_OF_ULTRASONIC_PIN
-};
-
-/* Pin assignment */
-static const uint8_t usTrigPins[NUM_OF_ULTRASONIC_PIN] = {2, 4, 11 };  // F, L, R
-static const uint8_t usEchoPins[NUM_OF_ULTRASONIC_PIN] = {3, 5, 12 };  // F, L, R
-static const uint8_t motorPins[NUM_OF_MOTOR_PIN] = {14, 15, 16, 17};  //  L_F, L_B,R_F, R_B
-
-long ultrasonicGetDistance(uint8_t trig, uint8_t echo)
-{
-    long duration;
-
-    pinMode(trig, OUTPUT);
-    digitalWrite(trig, LOW);
-    delayMicroseconds(2);
-    digitalWrite(trig, HIGH);
-    delayMicroseconds(5);
-    digitalWrite(trig, LOW);
-
-    pinMode(echo, INPUT);
-    duration = pulseIn(echo, HIGH, 5000000L);
-    return duration / 29 / 2;
-}
-void forward(int t)
-{
-        digitalWrite(motorPins[L_F], HIGH);
-        digitalWrite(motorPins[L_B], LOW);
-        digitalWrite(motorPins[R_F], HIGH);
-        digitalWrite(motorPins[R_B], LOW);
-        delay(t);
-}
-void backward(int t)
-{
-
-        digitalWrite(motorPins[L_F], LOW);
-        digitalWrite(motorPins[L_B], HIGH);
-        digitalWrite(motorPins[R_F], LOW);
-        digitalWrite(motorPins[R_B], HIGH);
-        delay(t);
-}
-void left(int t)
-{
-
-        digitalWrite(motorPins[L_F], LOW);
-        digitalWrite(motorPins[L_B], HIGH);
-        digitalWrite(motorPins[R_F], HIGH);
-        digitalWrite(motorPins[R_B], LOW);
-        delay(t);
-}
-void right(int t)
-{
-        digitalWrite(motorPins[L_F], HIGH);
-        digitalWrite(motorPins[motorPins[L_B]], LOW);
-        digitalWrite(motorPins[R_F], LOW);
-        digitalWrite(motorPins[R_B], HIGH);
-        delay(t);
-}
-
-void setup()
-{ 
-  int motorpins=0;
-  while(motorpins<NUM_OF_MOTOR_PIN){
-    pinMode(motorPins[motorpins],OUTPUT);
-    motorpins++;
-  }
-  Serial.begin(9600);
-  while (!Serial)
-    ;
-}
-void loop()
-{
-
-  long dF, dL, dR;
+#define S0 6
+#define S1 7
+#define S2 8
+#define S3 9
+#define sensorOut 10
+int frequency = 0;
+void setup() {
+  pinMode(S0, OUTPUT);
+  pinMode(S1, OUTPUT);
+  pinMode(S2, OUTPUT);
+  pinMode(S3, OUTPUT);
+  pinMode(sensorOut, INPUT);
   
-    dF = ultrasonicGetDistance(usTrigPins[U_F], usEchoPins[U_F]);
-
-    if(dF<15){
-      right(150);
-      }else{
-        forward(100);
-        }
-      
+  // Setting frequency-scaling to 20%
+  digitalWrite(S0,HIGH);
+  digitalWrite(S1,LOW);
+  
+  Serial.begin(9600);
+}
+void loop() {
+  // Setting red filtered photodiodes to be read
+  digitalWrite(S2,LOW);
+  digitalWrite(S3,LOW);
+  // Reading the output frequency
+  frequency = pulseIn(sensorOut, LOW);
+  //Remaping the value of the frequency to the RGB Model of 0 to 255
+  frequency = map(frequency, 25,72,255,0);
+  // Printing the value on the serial monitor
+  Serial.print("R= ");//printing name
+  Serial.print(frequency);//printing RED color frequency
+  Serial.print("  ");
+  delay(100);
+  // Setting Green filtered photodiodes to be read
+  digitalWrite(S2,HIGH);
+  digitalWrite(S3,HIGH);
+  // Reading the output frequency
+  frequency = pulseIn(sensorOut, LOW);
+  //Remaping the value of the frequency to the RGB Model of 0 to 255
+  frequency = map(frequency, 30,90,255,0);
+  // Printing the value on the serial monitor
+  Serial.print("G= ");//printing name
+  Serial.print(frequency);//printing RED color frequency
+  Serial.print("  ");
+  delay(100);
+  // Setting Blue filtered photodiodes to be read
+  digitalWrite(S2,LOW);
+  digitalWrite(S3,HIGH);
+  // Reading the output frequency
+  frequency = pulseIn(sensorOut, LOW);
+  //Remaping the value of the frequency to the RGB Model of 0 to 255
+  frequency = map(frequency, 25,70,255,0);
+  // Printing the value on the serial monitor
+  Serial.print("B= ");//printing name
+  Serial.print(frequency);//printing RED color frequency
+  Serial.println("  ");
+  delay(100);
 }
