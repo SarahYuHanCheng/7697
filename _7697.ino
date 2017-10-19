@@ -1,57 +1,287 @@
-#define S0 6
-#define S1 7
-#define S2 8
-#define S3 9
-#define sensorOut 10
-int frequency = 0;
-void setup() {
-  pinMode(S0, OUTPUT);
-  pinMode(S1, OUTPUT);
-  pinMode(S2, OUTPUT);
-  pinMode(S3, OUTPUT);
-  pinMode(sensorOut, INPUT);
-  
-  // Setting frequency-scaling to 20%
-  digitalWrite(S0,HIGH);
-  digitalWrite(S1,LOW);
-  
-  Serial.begin(9600);
+/* Receive the controlling message, turning on/off and pwm, and
+ * than set the corresponding pin.
+ */
+#include <WiFi.h>
+
+#include <WiFiClient.h>
+#include <LWiFi.h>
+#include <task.h>
+
+#define SSID "CSIE-WLAN"
+#define PASSWD "wificsie"
+#define TCP_IP "192.168.208.204"
+#define TCP_PORT 5000
+
+WiFiClient wifiClient;
+
+static char buf[32];
+static int messageLen;
+static char client_ID[] = "Sarah";
+static char *recv_ID,*recv_buf;
+static int pos[5];
+
+int xf, yf;
+float x_s, y_s;
+int Dx, Dy;
+float movm, posm, xmov, ymov, mov_v, pos_v;
+int adj=200;
+
+
+IPAddress ip;
+
+enum MotorPinID {
+    L_F = 0,
+    L_B,
+    R_F,
+    R_B,
+    NUM_OF_MOTOR_PIN
+};
+enum UltrasonicPinID {
+    U_F = 0,
+    U_L,
+    U_R,
+    NUM_OF_ULTRASONIC_PIN
+};
+
+/* Pin assignment */
+static const uint8_t usTrigPins[NUM_OF_ULTRASONIC_PIN] = {2, 4, 11 };  // F, L, R
+static const uint8_t usEchoPins[NUM_OF_ULTRASONIC_PIN] = {3, 5, 12 };  // F, L, R
+static const uint8_t motorPins[NUM_OF_MOTOR_PIN] = {14, 15, 16, 17};  //  L_F, L_B,R_F, R_B
+
+long ultrasonicGetDistance(uint8_t trig, uint8_t echo)
+{
+    long duration;
+
+    pinMode(trig, OUTPUT);
+    digitalWrite(trig, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trig, HIGH);
+    delayMicroseconds(5);
+    digitalWrite(trig, LOW);
+
+    pinMode(echo, INPUT);
+    duration = pulseIn(echo, HIGH, 5000000L);
+    return duration / 29 / 2;
 }
-void loop() {
-  // Setting red filtered photodiodes to be read
-  digitalWrite(S2,LOW);
-  digitalWrite(S3,LOW);
-  // Reading the output frequency
-  frequency = pulseIn(sensorOut, LOW);
-  //Remaping the value of the frequency to the RGB Model of 0 to 255
-  frequency = map(frequency, 25,72,255,0);
-  // Printing the value on the serial monitor
-  Serial.print("R= ");//printing name
-  Serial.print(frequency);//printing RED color frequency
-  Serial.print("  ");
-  delay(100);
-  // Setting Green filtered photodiodes to be read
-  digitalWrite(S2,HIGH);
-  digitalWrite(S3,HIGH);
-  // Reading the output frequency
-  frequency = pulseIn(sensorOut, LOW);
-  //Remaping the value of the frequency to the RGB Model of 0 to 255
-  frequency = map(frequency, 30,90,255,0);
-  // Printing the value on the serial monitor
-  Serial.print("G= ");//printing name
-  Serial.print(frequency);//printing RED color frequency
-  Serial.print("  ");
-  delay(100);
-  // Setting Blue filtered photodiodes to be read
-  digitalWrite(S2,LOW);
-  digitalWrite(S3,HIGH);
-  // Reading the output frequency
-  frequency = pulseIn(sensorOut, LOW);
-  //Remaping the value of the frequency to the RGB Model of 0 to 255
-  frequency = map(frequency, 25,70,255,0);
-  // Printing the value on the serial monitor
-  Serial.print("B= ");//printing name
-  Serial.print(frequency);//printing RED color frequency
-  Serial.println("  ");
-  delay(100);
+void setup()
+{
+  int motorpins=0;
+  while(motorpins<NUM_OF_MOTOR_PIN){
+    pinMode(motorPins[motorpins],OUTPUT);
+    motorpins++;
+  }
+    Serial.begin(115200);
+    while (!Serial)
+      ;       
+    // set WiFi
+   // WiFi.mode(WIFI_STA);
+    int status = WL_IDLE_STATUS;
+    WiFi.begin(SSID, PASSWD);
+    while (status != WL_CONNECTED) {
+        // Connect failed, blink 0.5 second to indicate
+        // the board is retrying.
+        delay(500);
+        WiFi.begin(SSID, PASSWD);
+        status =  WiFi.begin(SSID, PASSWD);
+        Serial.print("Attempting to connect to SSID: ");
+        Serial.println(SSID);
+        Serial.println(status);
+    }
+    
+    // Conenct to AP successfully
+   // wifiClient.connect(TCP_IP, TCP_PORT);
+      while (!wifiClient.connect(TCP_IP, TCP_PORT)){
+      delay(300);
+      Serial.print("Attempting to connect to SERVER: ");
+        Serial.println(TCP_IP);
+    }
+
+    reg_ID();
+
+    delay(1000);
+    xTaskCreate(
+                    askPos,          /* Task function. */
+                    "askPos",        /* String with name of task. */
+                    10000,            /* Stack size in words. */
+                    NULL,             /* Parameter passed as input of the task */
+                    1,                /* Priority of the task. */
+                    NULL);            /* Task handle. */
+}  
+
+void reg_ID()
+{
+    strcpy(buf,"Register|");
+    strcat(buf,client_ID);
+    wifiClient.write(buf, strlen(buf));
+    wifiClient.flush();
 }
+
+void send_mes(char ID[],char mes[])
+{
+    sprintf(buf,"%s|%s",ID,mes);
+    wifiClient.write(buf, strlen(buf));
+    wifiClient.flush();
+}
+
+void askPos( void * parameter )
+{
+    while(1)
+    {
+      if ((messageLen = wifiClient.available()) > 0) {
+        int i = 0;
+        do
+        {
+            buf[i++] = wifiClient.read();
+        }while(i<32 && buf[i-1]!='\r');
+        
+        buf[i-1] = '\0';
+        send_mes("Position","");
+      }
+      delay(100);
+    }
+    
+    Serial.println("Ending task 1");
+    vTaskDelete( NULL );
+ 
+}
+void get_buf(){
+   char *pch;
+         pch = strtok(buf,"|\0");
+         int j =0;
+         while (pch != NULL){
+          int tmp = atoi(pch);
+          pos[j]=tmp;
+          j++;
+          pch = strtok(NULL,"[,]() ");
+          
+          }
+          for(int i=1;i<sizeof(buf);i++){ buf[i]={0}; } 
+            xf = pos[1];yf = pos[2];Dx = pos[3];Dy = pos[4];
+            Serial.println("pos[]:");
+            Serial.println(pos[1]);
+            Serial.println(pos[2]);
+            Serial.println(pos[3]);
+            Serial.println(pos[4]);
+           
+  }
+  
+void D_first(float mx,float my,float posm){
+  if(my==0){ // on the Axis
+   if(mx >0){ right(adj); }else if(mx<0){ left(adj); }
+    }else if(mx==0){
+   if(my <0){ right(adj); }else if(my>0){ left(adj); }
+  }
+  else { // Quadrant
+    if(mx>0 && my>0){ // first
+      if(my/mx <= posm){ right(adj);}else{left(adj);}
+    }else if(mx<0 && my>0){ // second
+      left(adj);
+    }else if(mx<0 && my<0){ // third
+      if(my/mx <= posm){ left(adj);}else{right(adj);}
+    }else if(mx<0 && my<0){ // fourth
+      right(adj);
+      }
+    }
+ }
+
+void D_second(float mx,float my,float posm){
+  if(my==0){ // on the X Axis
+   if(mx >0){ right(adj); }else if(mx<0){ left(adj); }
+    }else if(mx==0){ // on the Ｙ Axis
+   if(my <0){ left(adj); }else if(my>0){ left(adj); }
+  }
+  else { // Quadrant
+    if(mx>0 && my>0){ // first
+      right(adj);
+    }else if(mx<0 && my>0){ // second
+      if(my/mx <= posm){ right(adj);}else{left(adj);}
+    }else if(mx<0 && my<0){ // third
+      left(adj);
+      
+    }else if(mx<0 && my<0){ // fourth
+      if(my/mx <= posm){ left(adj);}else{right(adj);}
+      }
+    }
+ }void D_third(float mx,float my,float posm){
+  if(my==0){ // on the X Axis
+   if(mx >0){ left(adj); }else if(mx<0){ right(adj); }
+    }else if(mx==0){
+   if(my <0){ left(adj); }else if(my>0){ right(adj); }
+  }
+  else { // Quadrant
+    if(mx>0 && my>0){ // first
+      if(my/mx <= posm){ left(adj);}else{right(adj);}
+    }else if(mx<0 && my>0){ // second
+      right(adj);
+    }else if(mx<0 && my<0){ // third
+      if(my/mx <= posm){ right(adj);}else{left(adj);}
+    }else if(mx<0 && my<0){ // fourth
+      left(adj);
+      }
+    }
+ }
+
+void D_fourth(float mx,float my,float posm){
+  if(my==0){ // on the Axis
+   if(mx >0){ left(adj); }else if(mx<0){ right(adj); }
+    }else if(mx==0){
+   if(my <0){ right(adj); }else if(my>0){ left(adj); }
+  }
+  else { // Quadrant
+    if(mx>0 && my>0){ // first
+      left(adj);
+    }else if(mx<0 && my>0){ // second
+      if(my/mx <= posm){ left(adj);}else{right(adj);}
+    }else if(mx<0 && my<0){ // third
+      right(adj);
+    }else if(mx<0 && my<0){ // fourth
+      if(my/mx <= posm){ right(adj);}else{left(adj);}
+      }
+    }
+ }
+void adjust_direction() {
+    
+      //adjust direction
+      get_buf();
+      x_s = xf;
+      y_s = yf;
+      float posx = Dx - x_s;
+      float posy = Dy - y_s;
+      float posm = posy / posx;
+      Serial.println("x_s");
+      Serial.println(x_s);
+      Serial.println(y_s);
+      delay(500);
+      get_buf();
+      Serial.println("f");
+      Serial.println(xf);
+      Serial.println(yf);
+      xmov = xf - x_s;
+      ymov = yf - y_s;
+      if(posx>0 && posy>0){
+          D_first(xmov,ymov,posm);
+        }else if (posx<0 && posy>0)
+        {  
+          D_second(xmov,ymov,posm);
+          }else if(posx<0 && posy<0)
+        {  
+          D_third(xmov,ymov,posm);
+        }else{
+          D_fourth(xmov,ymov,posm);
+            }
+            
+      
+  }
+void sense_obtacle(){
+    dF = ultrasonicGetDistance(usTrigPins[U_F], usEchoPins[U_F]);
+    dL = ultrasonicGetDistance(usTrigPins[U_L], usEchoPins[U_L]);
+    dR = ultrasonicGetDistance(usTrigPins[U_R], usEchoPins[U_R]);
+    
+    }
+void loop()
+{   
+    
+    adjust_direction();
+    sense_obtacle();
+    delay(100);
+} 
