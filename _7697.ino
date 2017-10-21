@@ -1,7 +1,7 @@
 /* Receive the controlling message, turning on/off and pwm, and
  * than set the corresponding pin.
  */
-#include <WiFi.h>
+//#include <WiFi.h>
 
 #include <WiFiClient.h>
 #include <LWiFi.h>
@@ -9,14 +9,14 @@
 
 #define SSID "CSIE-WLAN"
 #define PASSWD "wificsie"
-#define TCP_IP "192.168.208.204"
+#define TCP_IP "192.168.208.242"
 #define TCP_PORT 5000
 
 WiFiClient wifiClient;
 
 static char buf[32];
 static int messageLen;
-static char client_ID[] = "Sarah";
+static char client_ID[] = "Sarah",Team[] = "B";
 static char *recv_ID,*recv_buf;
 static int pos[5];
 
@@ -98,7 +98,7 @@ void setup()
 
     reg_ID();
 
-    delay(1000);
+    delay(100);
     xTaskCreate(
                     askPos,          /* Task function. */
                     "askPos",        /* String with name of task. */
@@ -110,7 +110,9 @@ void setup()
 
 void reg_ID()
 {
-    strcpy(buf,"Register|");
+ strcpy(buf,"Register");
+    strcat(buf,Team);
+    strcat(buf,"|");
     strcat(buf,client_ID);
     wifiClient.write(buf, strlen(buf));
     wifiClient.flush();
@@ -164,6 +166,41 @@ void get_buf(){
             Serial.println(pos[4]);
            
   }
+void forward(int t)
+{
+        digitalWrite(motorPins[L_F], HIGH);
+        digitalWrite(motorPins[L_B], LOW);
+        digitalWrite(motorPins[R_F], HIGH);
+        digitalWrite(motorPins[R_B], LOW);
+        delay(t);
+}
+void backward(int t)
+{
+
+        digitalWrite(motorPins[L_F], LOW);
+        digitalWrite(motorPins[L_B], HIGH);
+        digitalWrite(motorPins[R_F], LOW);
+        digitalWrite(motorPins[R_B], HIGH);
+        delay(t);
+}
+void left(int t)
+{
+
+        digitalWrite(motorPins[L_F], LOW);
+        digitalWrite(motorPins[L_B], HIGH);
+        digitalWrite(motorPins[R_F], HIGH);
+        digitalWrite(motorPins[R_B], LOW);
+        delay(t);
+}
+void right(int t)
+{
+        digitalWrite(motorPins[L_F], HIGH);
+        digitalWrite(motorPins[motorPins[L_B]], LOW);
+        digitalWrite(motorPins[R_F], LOW);
+        digitalWrite(motorPins[R_B], HIGH);
+        delay(t);
+}
+
   
 void D_first(float mx,float my,float posm){
   if(my==0){ // on the Axis
@@ -272,16 +309,18 @@ void adjust_direction() {
             
       
   }
-void sense_obtacle(){
-    dF = ultrasonicGetDistance(usTrigPins[U_F], usEchoPins[U_F]);
-    dL = ultrasonicGetDistance(usTrigPins[U_L], usEchoPins[U_L]);
-    dR = ultrasonicGetDistance(usTrigPins[U_R], usEchoPins[U_R]);
-    
+long *sense_obtacle(){
+//  long dF, dL, dR;
+  long ultra[3];
+    ultra[0] = ultrasonicGetDistance(usTrigPins[U_F], usEchoPins[U_F]);
+    ultra[1] = ultrasonicGetDistance(usTrigPins[U_L], usEchoPins[U_L]);
+    ultra[2] = ultrasonicGetDistance(usTrigPins[U_R], usEchoPins[U_R]);
+    return ultra;
     }
 void loop()
 {   
     
     adjust_direction();
-    sense_obtacle();
+    long *ultra_v=sense_obtacle();
     delay(100);
 } 
