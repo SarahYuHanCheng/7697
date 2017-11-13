@@ -9,16 +9,19 @@
 
 #define SSID "CSIE-WLAN"
 #define PASSWD "wificsie"
-#define TCP_IP "192.168.208.242"
+#define TCP_IP "192.168.208.60"
+#define TCP_IP_PHONE "192.168.208.248"
 #define TCP_PORT 5000
 
 WiFiClient wifiClient;
+WiFiClient wifiClientPh;
 
-static char buf[32];
-static int messageLen;
+static char buf[32],bufPh[32],buf_send[32],buf_phsend[32];
+static int messageLen,phmessageLen;
 static char client_ID[] = "Sarah",Team[] = "B";
 static char *recv_ID,*recv_buf;
 static int pos[5];
+static int MyPosX,MyPosY,DstPosX,DstPosY;
 
 int xf, yf;
 float x_s, y_s;
@@ -95,10 +98,15 @@ void setup()
       Serial.print("Attempting to connect to SERVER: ");
         Serial.println(TCP_IP);
     }
+     while (!wifiClientPh.connect(TCP_IP_PHONE, TCP_PORT)){
+      delay(300);
+      Serial.print("Attempting to connect to SERVER: ");
+        Serial.println(TCP_IP_PHONE);
+    }
 
     reg_ID();
 
-    delay(100);
+    delay(500);
     xTaskCreate(
                     askPos,          /* Task function. */
                     "askPos",        /* String with name of task. */
@@ -110,19 +118,25 @@ void setup()
 
 void reg_ID()
 {
- strcpy(buf,"Register");
-    strcat(buf,Team);
-    strcat(buf,"|");
-    strcat(buf,client_ID);
-    wifiClient.write(buf, strlen(buf));
+ strcpy(buf_send,"Register");
+    strcat(buf_send,Team);
+    strcat(buf_send,"|");
+    strcat(buf_send,client_ID);
+    wifiClient.write(buf_send, strlen(buf_send));
     wifiClient.flush();
 }
 
 void send_mes(char ID[],char mes[])
 {
-    sprintf(buf,"%s|%s",ID,mes);
-    wifiClient.write(buf, strlen(buf));
+    sprintf(buf_send,"%s|%s",ID,mes);
+    wifiClient.write(buf_send, strlen(buf_send));
     wifiClient.flush();
+}
+void send_phone(int x,int y)
+{
+    sprintf(buf_phsend,"(%d,%d)",x,y);
+    wifiClientPh.write(buf_phsend, strlen(buf_phsend));
+    wifiClientPh.flush();
 }
 
 void askPos( void * parameter )
@@ -137,9 +151,17 @@ void askPos( void * parameter )
         }while(i<32 && buf[i-1]!='\r');
         
         buf[i-1] = '\0';
+        recv_ID = strtok(buf,"|\0");
+        
+        Serial.print(":");
+        recv_buf = strtok(NULL,"|\0");
+        Serial.println(recv_buf);
+        sscanf(recv_buf,"(%d,%d)(%d,%d)",&MyPosX,&MyPosY,&DstPosX,&DstPosY);
+        Serial.println(MyPosY);
+        send_phone(MyPosX,MyPosY);
         send_mes("Position","");
       }
-      delay(100);
+      delay(300);
     }
     
     Serial.println("Ending task 1");
@@ -168,6 +190,7 @@ void get_buf(){
   }
 void forward(int t)
 {
+        Serial.print("F");
         digitalWrite(motorPins[L_F], HIGH);
         digitalWrite(motorPins[L_B], LOW);
         digitalWrite(motorPins[R_F], HIGH);
@@ -176,7 +199,7 @@ void forward(int t)
 }
 void backward(int t)
 {
-
+        Serial.print("B");
         digitalWrite(motorPins[L_F], LOW);
         digitalWrite(motorPins[L_B], HIGH);
         digitalWrite(motorPins[R_F], LOW);
@@ -185,7 +208,7 @@ void backward(int t)
 }
 void left(int t)
 {
-
+        Serial.print("L");
         digitalWrite(motorPins[L_F], LOW);
         digitalWrite(motorPins[L_B], HIGH);
         digitalWrite(motorPins[R_F], HIGH);
@@ -194,6 +217,8 @@ void left(int t)
 }
 void right(int t)
 {
+        
+        Serial.print("R");
         digitalWrite(motorPins[L_F], HIGH);
         digitalWrite(motorPins[motorPins[L_B]], LOW);
         digitalWrite(motorPins[R_F], LOW);
@@ -201,7 +226,35 @@ void right(int t)
         delay(t);
 }
 
-  
+
+void handleCommand()
+{
+    // Stop moving
+    if (bufPh[1] == 'E') {
+        
+        return;
+    }
+
+    switch (bufPh[0]) {
+    case 'F':   // Forward
+        forward(100);
+        break;
+    case 'B':   // Backward
+        backward(100);
+        break;
+    case 'L':   // Turn left
+        left(100);
+        break;
+    case 'R':   // Turn right
+        right(100);
+        break;
+    case 'Z':   // Report ultrasonic distance and color
+    //    reportUltrasonic();
+    //reportColorSensor();
+        break;
+    }
+}
+
 void D_first(float mx,float my,float posm){
   if(my==0){ // on the Axis
    if(mx >0){ right(adj); }else if(mx<0){ left(adj); }
@@ -320,7 +373,17 @@ long *sense_obtacle(){
 void loop()
 {   
     
-    adjust_direction();
-    long *ultra_v=sense_obtacle();
+//    adjust_direction();
+//     long *ultra_v=sense_obtacle();
+    if ((phmessageLen = wifiClientPh.available()) > 0) {
+        for (int i = 0; i < phmessageLen; ++i)
+            bufPh[i] = wifiClientPh.read();
+        bufPh[phmessageLen] = '\0';
+       // Serial.println(buf);
+       handleCommand();
+    }
     delay(100);
-} 
+} /* Receive the controlling message, turning on/off and pwm, and
+ * than set the corresponding pin.
+ */
+ 
