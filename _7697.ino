@@ -120,6 +120,22 @@ void askPos( void * parameter )
         Serial.print(recv_ID);
         Serial.print(":");
         recv_buf = strtok(NULL,"|\0");
+        
+        int cmp = strcmp(recv_buf,"Start");
+        int cmp2 = strcmp(recv_buf,"Done");
+        if(cmp==0){
+            printf("Start!!!");
+        }else if(cmp2==0){
+            printf("Done!!!");           
+        }else{
+            recv_buf = strtok(NULL,"|\0");
+             printf(recv_buf);
+            sscanf(recv_buf,"(%d,%d)(%d,%d)",&MyPosX,&MyPosY,&DstPosX,&DstPosY);
+            int ttt = strcmp(MyPosX,"a");
+            if(ttt==0){
+                printf("cut right");
+            }
+        }
         Serial.println(recv_buf);
         sscanf(recv_buf,"POS:(%d,%d)(%d,%d)",&MyPosX,&MyPosY,&DstPosX,&DstPosY);
         Serial.println(MyPosX);
