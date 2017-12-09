@@ -1,50 +1,91 @@
-/* Receive the controlling message, turning on/off and pwm, and
- * than set the corresponding pin.
- */
-#include <WiFiClient.h>
+//#include <WiFiClient.h>
 #include <LWiFi.h>
 #include <task.h>
-#define SSID "2scream"
+
+#define SSID "1scream2.4G"
 #define PASSWD "2017scream"
-#define TCP_IP "192.168.0.102"
-#define TCP_IP_PHONE "192.168.0.101"
+#define TCP_IP "192.168.0.69"
+#define TCP_IP_PHONE "192.168.0.42"
 #define TCP_PORT 5000
 
-WiFiClient wifiClient;
 WiFiClient wifiClientPh;
-
-static char buf[48],bufPh[48],buf_send[32],buf_phsend[32];
-static int messageLen,phmessageLen;
-static char client_ID[] = "Sarah",Team[] = "B";
-static char *recv_ID,*recv_buf;
-static int MyPosX,MyPosY,DstPosX,DstPosY;
+xTaskHandle xHandle;
+enum UltrasonicPinID {
+    U_F = 0,
+    U_L,
+    U_R,
+    NUM_OF_ULTRASONIC_PIN
+};
 
 
 IPAddress ip;
+static char buf[48],bufPh[48],buf_send[32],buf_phsend[32];
+static int messageLen,phmessageLen,state;
+static char client_ID[] = "Sara",Team[] = "B";
+static char *recv_ID,*recv_buf;
+static int pos[5];
+static const uint8_t usTrigPins[NUM_OF_ULTRASONIC_PIN] = {2, 4, 11 };  // F, L, R
+static const uint8_t usEchoPins[NUM_OF_ULTRASONIC_PIN] = {3, 5, 12 };  // F, L, R
+long ultrasonicGetDistance(uint8_t trig, uint8_t echo)
+{
+    long duration;
 
-enum MotorPinID {
-    L_F = 0,
-    L_B,
-    R_F,
-    R_B,
-    NUM_OF_MOTOR_PIN
-};
-static const uint8_t motorPins[NUM_OF_MOTOR_PIN] = {14, 15, 16, 17};  //  L_F, L_B,R_F, R_B
+//    taskENTER_CRITICAL();
+vTaskSuspend( xHandle );
+    pinMode(trig, OUTPUT);
+    digitalWrite(trig, LOW);
+    delayMicroseconds(2);
+    digitalWrite(trig, HIGH);
+    delayMicroseconds(5);
+    digitalWrite(trig, LOW);
+    pinMode(echo, INPUT);
+    duration = pulseIn(echo, HIGH, 5000000L);
+//    delay(20);
+//    taskEXIT_CRITICAL();
+vTaskResume( xHandle );
+    return duration / 29 / 2;
+}
+void send_phone(int x,long int* y)
+{
+    sprintf(buf_phsend,"(%d,%d)",x,y);
+    wifiClientPh.write(buf_phsend, strlen(buf_phsend));
+    wifiClientPh.flush();
+}
+ long ultra[3];
+long *sense_obtacle(){
+//  long dF, dL, dR;
+ 
+    ultra[0] = ultrasonicGetDistance(usTrigPins[U_F], usEchoPins[U_F]);
+    ultra[1] = ultrasonicGetDistance(usTrigPins[U_L], usEchoPins[U_L]);
+    ultra[2] = ultrasonicGetDistance(usTrigPins[U_R], usEchoPins[U_R]);
+   
+    Serial.println("----------------");
+    Serial.println(ultra[0]);
+    Serial.println(ultra[1]);
+    Serial.println(ultra[2]);
+    return ultra;
+    }
 
-void setup()
-{ 
-  int motorpins=0;
-  while(motorpins<NUM_OF_MOTOR_PIN){
-    pinMode(motorPins[motorpins],OUTPUT);
-    motorpins++;
-  }
-    int status = WL_IDLE_STATUS;
-    Serial.begin(115200);
-    while (!Serial)
-      ;      
+    void askPos( void * parameter )
+{
+  
+    while(1)
+    {
+       send_phone('F',ultra);
+    send_phone('L',ultra+1);
+    send_phone('R',ultra+2);
+    delay(80);
+    }
 
-    // set WiFi
-   // WiFi.mode(WIFI_STA);
+    
+    Serial.println("Ending task 1");
+    vTaskDelete( NULL );
+ 
+}
+void setup() {
+  // put your setup code here, to run once:
+ Serial.begin(115200);
+   int status = WL_IDLE_STATUS;
     WiFi.begin(SSID, PASSWD);
     while (status != WL_CONNECTED) {
         // Connect failed, blink 0.5 second to indicate
@@ -57,185 +98,23 @@ void setup()
         Serial.println(status);
     }
     
-    // Conenct to AP successfully
-   // wifiClient.connect(TCP_IP, TCP_PORT);
-      while (!wifiClient.connect(TCP_IP, TCP_PORT)){
+      while (!wifiClientPh.connect(TCP_IP_PHONE, TCP_PORT)){
       delay(300);
       Serial.print("Attempting to connect to SERVER: ");
-        Serial.println(TCP_IP);
-    }
-    while (!wifiClientPh.connect(TCP_IP_PHONE, TCP_PORT)){
-      delay(300);
-      Serial.print("Attempting to connect to PHONE SERVER: ");
         Serial.println(TCP_IP_PHONE);
     }
 
-    reg_ID();
-
-    delay(1000);
-    xTaskCreate(
+        xTaskCreate(
                     askPos,          /* Task function. */
                     "askPos",        /* String with name of task. */
                     10000,            /* Stack size in words. */
                     NULL,             /* Parameter passed as input of the task */
                     1,                /* Priority of the task. */
-                    NULL);            /* Task handle. */
-}  
-
-void reg_ID()
-{
-    strcpy(buf,"Register|");
-    strcat(buf,client_ID);
-    wifiClient.write(buf, strlen(buf));
-    wifiClient.flush();
+                    &xHandle);  
 }
 
-void send_mes(char ID[],char mes[])
-{
-    sprintf(buf,"%s|%s",ID,mes);
-    wifiClient.write(buf, strlen(buf));
-    wifiClient.flush();
+void loop() {
+  // put your main code here, to run repeatedly:
+sense_obtacle();
+delay(50);
 }
-void send_phone(int x,int y)
-{
-    sprintf(buf_phsend,"(%d,%d)",x,y);
-    wifiClientPh.write(buf_phsend, strlen(buf_phsend));
-    wifiClientPh.flush();
-}
-
-
-void askPos( void * parameter )
-{
-    while(1)
-    {
-      if ((messageLen = wifiClient.available()) > 0) {
-        int i = 0;
-        do
-        {
-            buf[i++] = wifiClient.read();
-        }while(i<32 && buf[i-1]!='\r');
-        
-        buf[i-1] = '\0';
-        recv_ID = strtok(buf,"|\0");
-        Serial.print(recv_ID);
-        Serial.print(":");
-        recv_buf = strtok(NULL,"|\0");
-        
-        int cmp = strcmp(recv_buf,"Start");
-        int cmp2 = strcmp(recv_buf,"Done");
-        if(cmp==0){
-            printf("Start!!!");
-        }else if(cmp2==0){
-            printf("Done!!!");           
-        }else{
-            recv_buf = strtok(NULL,"|\0");
-             printf(recv_buf);
-            sscanf(recv_buf,"(%d,%d)(%d,%d)",&MyPosX,&MyPosY,&DstPosX,&DstPosY);
-            int ttt = strcmp(MyPosX,"a");
-            if(ttt==0){
-                printf("cut right");
-            }
-        }
-        Serial.println(recv_buf);
-        sscanf(recv_buf,"POS:(%d,%d)(%d,%d)",&MyPosX,&MyPosY,&DstPosX,&DstPosY);
-        Serial.println(MyPosX);
-        Serial.println(MyPosY);
-        
-    send_phone(MyPosX,MyPosY); 
-        send_mes("Position","");
-      }
-      delay(100);
-    }
-    
-    Serial.println("Ending task 1");
-    vTaskDelete( NULL );
- 
-}
-void forward(int t)
-{
-        Serial.print("F");
-        digitalWrite(motorPins[L_F], HIGH);
-        digitalWrite(motorPins[L_B], LOW);
-        digitalWrite(motorPins[R_F], HIGH);
-        digitalWrite(motorPins[R_B], LOW);
-        delay(t);
-}
-void backward(int t)
-{
-        Serial.print("B");
-        digitalWrite(motorPins[L_F], LOW);
-        digitalWrite(motorPins[L_B], HIGH);
-        digitalWrite(motorPins[R_F], LOW);
-        digitalWrite(motorPins[R_B], HIGH);
-        delay(t);
-}
-void left(int t)
-{
-        Serial.print("L");
-        digitalWrite(motorPins[L_F], LOW);
-        digitalWrite(motorPins[L_B], HIGH);
-        digitalWrite(motorPins[R_F], HIGH);
-        digitalWrite(motorPins[R_B], LOW);
-        delay(t);
-}
-void right(int t)
-{
-        
-        Serial.print("R");
-        digitalWrite(motorPins[L_F], HIGH);
-        digitalWrite(motorPins[L_B], LOW);
-        digitalWrite(motorPins[R_F], LOW);
-        digitalWrite(motorPins[R_B], HIGH);
-        delay(t);
-}
-
-void sstop(int t)
-{
-        
-        Serial.print("P");
-        digitalWrite(motorPins[L_F], LOW);
-        digitalWrite(motorPins[L_B], LOW);
-        digitalWrite(motorPins[R_F], LOW);
-        digitalWrite(motorPins[R_B], LOW);
-        delay(t);
-}
-
-void handleCommand()
-{
-    // Stop moving
-    if (bufPh[1] == 'E') {
-        sstop(100);
-        return;
-    }
-
-    switch (bufPh[0]) {
-    case 'F':   // Forward
-        forward(100);
-        break;
-    case 'B':   // Backward
-        backward(100);
-        break;
-    case 'L':   // Turn left
-        left(100);
-        break;
-    case 'R':   // Turn right
-        right(100);
-        break;
-    case 'Z':   // Report ultrasonic distance and color
-    //    reportUltrasonic();
-    //reportColorSensor();
-        break;
-    }
-}
-void loop()
-{   
-    if ((phmessageLen = wifiClientPh.available()) > 0) {
-        for (int i = 0; i < phmessageLen; ++i)
-            bufPh[i] = wifiClientPh.read();
-        bufPh[phmessageLen] = '\0';
-       // Serial.println(buf);
-       handleCommand();
-    }
-    
-    delay(100);
-} 
