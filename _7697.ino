@@ -1,143 +1,60 @@
-//#include <WiFiClient.h>
+#include <WiFiClient.h>
 #include <LWiFi.h>
 #include <task.h>
+#include <LRTC.h>
+#define TIME_MSG_LEN  11   // time sync to PC is HEADER and unix time_t as ten ascii digits
+#define TIME_HEADER  255   // Header tag for serial time sync message
 
-#define SSID "1scream2.4G"
-#define PASSWD "2017scream"
+//
+//#define SSID "CSIE-WLAN"
+//#define PASSWD "wificsie"
+//#define TCP_IP "192.168.208.124"
+//#define SSID "1scream2.4G"
+//#define PASSWD "2017scream"
+#define SSID "scream"
+#define PASSWD "s741852scream"
 #define TCP_IP "192.168.0.50"
-#define TCP_IP_PHONE "192.168.0.42"
 #define TCP_PORT 5000
 
-WiFiClient wifiClient;
-WiFiClient wifiClientPh;
 xTaskHandle xHandle;
-enum UltrasonicPinID {
-    U_F = 0,
-    U_L,
-    U_R,
-    NUM_OF_ULTRASONIC_PIN
-};
-enum MotorPinID {
-    L_F = 0,
-    L_B,
-    R_F,
-    R_B,
-    NUM_OF_MOTOR_PIN
-};
-static const uint8_t motorPins[NUM_OF_MOTOR_PIN] = {14, 15, 16, 17};  //  L_F, L_B,R_F, R_B
 
-int cnt;
-IPAddress ip;
-static char buf[48],bufPh[48],buf_send[32],buf_phsend[32];
-static int messageLen,phmessageLen,state;
-static char client_ID[] = "Zeo",Team[] = "B";
+WiFiClient wifiClient;
+static char buf[128],buf_send[128];
+
+static int messageLen,phmessageLen;
+static char client_ID[] = "aaa",P_ID[]="bbb",Team[] = "B";
 static char *recv_ID,*recv_buf;
-static int pos[5];
-static const uint8_t usTrigPins[NUM_OF_ULTRASONIC_PIN] = {2, 4, 11 };  // F, L, R
-static const uint8_t usEchoPins[NUM_OF_ULTRASONIC_PIN] = {3, 5, 12 };  // F, L, R
-static int MyPosX,MyPosY,DstPosX,DstPosY,DstPos1x,DstPos1y,DstPos3,DstPos4;
+boolean start=true;
 
-long ultrasonicGetDistance(uint8_t trig, uint8_t echo)
-{
-    long duration;
+unsigned long time;
+unsigned long ask_time;
+char buffer[64];
 
-//    taskENTER_CRITICAL();
-//vTaskSuspend( xHandle );
-//    Serial.println("in suspend task");
-
-    pinMode(trig, OUTPUT);
-    digitalWrite(trig, LOW);
-    delayMicroseconds(2);
-    digitalWrite(trig, HIGH);
-    delayMicroseconds(5);
-    digitalWrite(trig, LOW);
-    pinMode(echo, INPUT);
-    duration = pulseIn(echo, HIGH, 5000000L);
-//    taskEXIT_CRITICAL();
-//vTaskResume( xHandle ); 
-    return duration / 29 / 2;
-}
-void send_mes(char ID[],char mes[])
-{
-    sprintf(buf,"%s|%s",ID,mes);
-    wifiClient.write(buf, strlen(buf));
-    wifiClient.flush();
-}
 
 void reg_ID()
 {
-    strcpy(buf_send,"Register|");
-    strcat(buf_send,client_ID);
-    wifiClient.write(buf_send, strlen(buf_send));
+    strcpy(buf,"Register");
+    strcat(buf,Team);
+    strcat(buf,"|");
+    strcat(buf,client_ID);
+    wifiClient.write(buf, strlen(buf));
     wifiClient.flush();
-}
-
-
-    void askPos( void * parameter )
-{
+//    getPCtime();   // try to get time sync from pc        
+//  if(DateTime.available()) { // update clocks if time has been synced
+//    unsigned long prevtime = DateTime.now(); 
+//    Serial.print("reg_ID time: ");
+//    Serial.println(prevtime);
+//  }
   
-    while(1)
-    {
-       if ((messageLen = wifiClient.available()) > 0) {
-        int i = 0;
-        do
-        {
-            buf[i++] = wifiClient.read();
-        }while(i<32 && buf[i-1]!='\r');
-        
-        buf[i-1] = '\0';
-        recv_ID = strtok(buf,"|\0");
-        recv_buf = strtok(NULL,"|\0");
-        Serial.println(recv_buf);
-        int cmp = strcmp(recv_buf,"Start");
-        int cmp2 = strcmp(recv_buf,"Done");
-        recv_ID = strtok(recv_buf,":");
-        int cmp3 = strcmp(recv_ID,"Treasure");
-        int cmp4 = strcmp(recv_ID,"False");
-        
-        if(cmp==0){
-            Serial.println("Start!!");
-            cnt=1;
-            send_mes("Treasure","");
-            
-        }else if(cmp2==0){
-            Serial.println("Done!!!");           
-        }else if(cmp3==0){
-            Serial.println("Treasure!!!");   
-                 sscanf(recv_buf,"(%d, %d)",&DstPosX,&DstPosY);
-                  Serial.println("Dst:");
-                 Serial.println(DstPosX);
-                  Serial.println(DstPosY);
-        }else if(cmp4==0){
-          recv_buf = strtok(NULL,"|\0");
-            Serial.println("Whose:");
-            Serial.println(recv_buf);
-
-char partner[] = {'123', '132'};
-            send_mes(recv_buf,partner);
-                
-        }else{
-            
-            recv_buf = strtok(NULL,":\0");
-            sscanf(recv_buf,"POS:(%d, %d)",&MyPosX,&MyPosY);
-           
-        }
-        
-//    send_phone(MyPosX,MyPosY); 
-        send_mes("Position","");
-      }
-      delay(100);
-    }
-    
-    Serial.println("Ending task 1");
-    vTaskDelete( NULL );
- 
 }
-
-void setup() {
-  // put your setup code here, to run once:
- Serial.begin(115200);
-   int status = WL_IDLE_STATUS;
+ 
+void setup() {  int status = WL_IDLE_STATUS;
+    Serial.begin(9600);
+    while (!Serial)
+      ;      
+     
+    // set WiFi
+//    WiFi.mode(WIFI_STA);
     WiFi.begin(SSID, PASSWD);
     while (status != WL_CONNECTED) {
         // Connect failed, blink 0.5 second to indicate
@@ -149,52 +66,171 @@ void setup() {
         Serial.println(SSID);
         Serial.println(status);
     }
-
+    
+    // Conenct to AP successfully
+   // wifiClient.connect(TCP_IP, TCP_PORT);
       while (!wifiClient.connect(TCP_IP, TCP_PORT)){
       delay(300);
       Serial.print("Attempting to connect to SERVER: ");
         Serial.println(TCP_IP);
     }
-reg_ID();
+    reg_ID();
+    
+    delay(500);
+     sprintf(buffer, "%ld/%ld/%ld %.2ld:%.2ld:%.2ld",
+    LRTC.year(), LRTC.month(), LRTC.day(), LRTC.hour(), LRTC.minute(), LRTC.second());
 
-//    
-//      while (!wifiClientPh.connect(TCP_IP_PHONE, TCP_PORT)){
-//      delay(300);
-//      Serial.print("Attempting to connect to SERVER: ");
-//        Serial.println(TCP_IP_PHONE);
-//    }
-
-        xTaskCreate(
+  Serial.println(buffer);
+    xTaskCreate(
                     askPos,          /* Task function. */
                     "askPos",        /* String with name of task. */
                     10000,            /* Stack size in words. */
                     NULL,             /* Parameter passed as input of the task */
                     0,                /* Priority of the task. */
-                    &xHandle);  
-                    int motorpins=0;
+                    &xHandle);      
+}
+void send_mes(char ID[],char mes[])
+{
+    sprintf(buf_send,"%s|%s",ID,mes);
+    wifiClient.write(buf_send, strlen(buf_send));
+    wifiClient.flush();
+}
+void askPos( void * parameter )
+{
+  
+  
+    while(1)
+    {
+      if ((messageLen = wifiClient.available()) > 0) {
+//        getPCtime();   // try to get time sync from pc  
+      
+//  if(DateTime.available()) { // update clocks if time has been synced
+////    unsigned long prevtime = DateTime.now(); 
+if(start){
+    Serial.print("get msg from server : ");
+//    Serial.println(prevtime);}
+LRTC.get();
 
-  while(motorpins<NUM_OF_MOTOR_PIN){
-    pinMode(motorPins[motorpins],OUTPUT);
-    motorpins++;
-  }
+  // display the time
+  sprintf(buffer, "%ld/%ld/%ld %.2ld:%.2ld:%.2ld",
+    LRTC.year(), LRTC.month(), LRTC.day(), LRTC.hour(), LRTC.minute(), LRTC.second());
+
+  Serial.println(buffer);    
+  Serial.print("Interval: ");
+  time=millis()-ask_time;
+      Serial.println(time);
+        int i = 0;
+        do
+        {
+            buf[i++] = wifiClient.read();
+        }while(i<128 && buf[i-1]!='\r');
+        
+        buf[i-1] = '\0';
+        Serial.print(buf);
+        recv_ID = strtok(buf,"|\0");
+        send_mes("AskPos",P_ID);
+}else{
+  int i = 0;
+
+        do
+        {
+            buf[i++] = wifiClient.read();
+        }while(i<128 && buf[i-1]!='\r');
+        
+        buf[i-1] = '\0';
+        Serial.print(buf);
+        if (strncmp("Master|Start\0", buf, 10)==0){
+          start = true;
+              LRTC.set(2018, 1, 16, 14, 30, 00);
+                   delay(1000);
+            LRTC.get();
+            
+              // display the time
+              sprintf(buffer, "%ld/%ld/%ld %.2ld:%.2ld:%.2ld",
+                LRTC.year(), LRTC.month(), LRTC.day(), LRTC.hour(), LRTC.minute(), LRTC.second());
+            Serial.println(client_ID);
+              Serial.println(buffer);
+//          Serial.println("test");
+////          send_mes("Treasure","");
+        }
+        
+//          getPCtime();   // try to get time sync from pc        
+//  if(DateTime.available()) { // update clocks if time has been synced
+//    unsigned long prevtime = DateTime.now(); 
+//    Serial.print("reg_ID time: ");
+//    Serial.println(prevtime);
+//  }
+//  char toPartner=client_ID+" in "+prevtime;
+//        send_mes(P_ID,toPartner);
+      }
+      delay(100);
+    }
+  
+    Serial.println("Ending task 1");
+    vTaskDelete( NULL );
+//  }
+ 
+}
 
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
-//cnt +=1;
-long dF, dL, dR;
-  if(cnt>0){
-//if(cnt>1000){
-//  Serial.println("suspend");
-   dF = ultrasonicGetDistance(usTrigPins[U_F], usEchoPins[U_F]);
-    dL = ultrasonicGetDistance(usTrigPins[U_L], usEchoPins[U_L]);
-     dR = ultrasonicGetDistance(usTrigPins[U_R], usEchoPins[U_R]);
-Serial.println("loop ULTRA:");
-Serial.println(dF);
-Serial.println(dL);
-Serial.println(dR);     
-//  cnt = 0;}//delay(50);
-  delay(300);
-  }
+//  vTaskSuspend( xHandle );
+  delay(100);
+  LRTC.get();
+
+  // display the time
+  sprintf(buffer, "%ld/%ld/%ld %.2ld:%.2ld:%.2ld",
+    LRTC.year(), LRTC.month(), LRTC.day(), LRTC.hour(), LRTC.minute(), LRTC.second());
+Serial.print("SEND TO PARTNER: ");
+  Serial.println(buffer);
+//    char toPartner=client_ID+" in "+buffer;
+        send_mes(P_ID,buffer);
+//  if ((messageLen = wifiClient.available()) > 0) {
+//        int i = 0;
+//        do
+//        {
+//            buf[i++] = wifiClient.read();
+//        }while(i<128 && buf[i-1]!='\r');
+//        
+//        buf[i-1] = '\0';
+        if (strncmp("Master|Start\0", buf, 10)==0){
+              LRTC.set(2018, 1, 16, 14, 30, 00);
+                   delay(1000);
+            LRTC.get();
+            
+              // display the time
+              sprintf(buffer, "%ld/%ld/%ld %.2ld:%.2ld:%.2ld",
+                LRTC.year(), LRTC.month(), LRTC.day(), LRTC.hour(), LRTC.minute(), LRTC.second());
+            Serial.println(client_ID);
+              Serial.println(buffer);
+//          Serial.println("test");
+////          send_mes("Treasure","");
+        }//else{
+//        Serial.println(buf);
+//        recv_ID = strtok(buf,"|\0");
+//        recv_buf = strtok(NULL,"|\0");
+////        Serial.println(recv_buf);
+////Serial.println("got");
+////        Serial.print(recv_ID);
+////        Serial.print(":");
+////        recv_buf = strtok(NULL,"|\0");
+////        Serial.println(recv_buf);
+////       
+//        
+//        }
+       
+//      }else{
+//        Serial.println("No msg");
+//        
+//        }
+delay(1000);
+ send_mes("Position","");
+  ask_time = millis();
+    Serial.print("ask_time: ");
+    Serial.println(ask_time);
+//       vTaskResume( xHandle );
+      delay(100);
+      
+    
 }
